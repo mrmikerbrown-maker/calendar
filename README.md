@@ -6,7 +6,7 @@ Live page: https://mrmikerbrown-maker.github.io/calendar/
 - `scripts/fetch.py` — fetches the week (Mon–Fri; from Saturday it loads the coming week).
   Main source: TradingView's public calendar feed (actual, consensus, previous).
   Backup: the ForexFactory weekly feed (no actuals). No API key, no Claude tokens.
-- `.github/workflows/update.yml` — runs the fetch every 15 minutes on weekdays (every 30 minutes overnight for Asia),
+- `.github/workflows/update.yml` — checks every 5 minutes on weekdays (each run loops for ~5h40m, a new run starts every 2 hours, because GitHub often starts scheduled jobs late),
   and commits only when something changed.
 - `data/history.csv` — every released number with its consensus, kept forever. Data Surprises can read this.
 
