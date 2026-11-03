@@ -1,29 +1,39 @@
 name: Update calendar
 on:
   schedule:
-    # Every 15 minutes on weekdays, 05:00-21:45 UTC (06:00-22:45 London in winter).
-    # GitHub sometimes runs scheduled jobs late.
-    - cron: "*/15 5-21 * * 1-5"
-    # Overnight Asia releases (NZ, Australia, Japan, China)
-    - cron: "*/30 22-23 * * 0-4"
-    - cron: "*/30 0-4 * * 1-5"
-    # Saturday and Sunday: load next week
+    # GitHub often starts scheduled jobs late, or skips them. So each run keeps
+    # going for up to ~5h40m, checking every 5 minutes, and a fresh run every
+    # 2 hours takes over. Weekdays, plus Sunday evening for Asia's Monday.
+    - cron: "17 */2 * * 1-5"
+    - cron: "17 20,22 * * 0"
+    # Saturday: load next week
     - cron: "0 9 * * 6"
-    - cron: "0 18 * * 0"
   workflow_dispatch:
 permissions:
   contents: write
 concurrency:
   group: calendar
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/fetch.py
-      - run: |
-          git add data/
-          git diff --cached --quiet && exit 0
-          git -c user.name="github-actions[bot]" -c user.email="41898208+github-actions[bot]@users.noreply.github.com" commit -m "Update calendar"
-          git push
+      - name: Check every 5 minutes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898208+github-actions[bot]@users.noreply.github.com"
+          end=$(( $(date +%s) + 340*60 ))
+          # Saturday: one check is enough
+          [ "$(date -u +%u)" = "6" ] && end=0
+          while :; do
+            python3 scripts/fetch.py || echo "fetch failed, will retry"
+            git add data/
+            if ! git diff --cached --quiet; then
+              git commit -q -m "Update calendar"
+              git pull -q --rebase origin main && git push -q || echo "push failed, will retry"
+            fi
+            [ "$(date +%s)" -ge "$end" ] && break
+            sleep 300
+          done
